@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Settings, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Star, Settings, Plus, Edit2, Trash2, Save, X, FileText } from 'lucide-react';
 
 const OfferAdminApp = () =>
 {
@@ -12,6 +12,7 @@ const OfferAdminApp = () =>
   const [modalType, setModalType] = useState(''); // 'add' or 'edit'
   const [currentItem, setCurrentItem] = useState(null);
   const [formData, setFormData] = useState({});
+  const [showPdfMenu, setShowPdfMenu] = useState(null);
 
   // Mock API base URL - replace with your actual API URL
   const API_BASE = 'http://localhost:8080/api';
@@ -214,6 +215,48 @@ const OfferAdminApp = () =>
     }
   };
 
+  // PDF Generation functions
+  const generatePDF = async (offerId, pdfType) =>
+  {
+    try
+    {
+      console.log(`Generating ${pdfType} PDF for offer ${offerId}`);
+
+      // API call to generate PDF
+      const response = await fetch(`${API_BASE}/offers/${offerId}/generate-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type: pdfType })
+      });
+
+      if (response.ok)
+      {
+        // Handle successful PDF generation
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${pdfType}_offer_${offerId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else
+      {
+        console.error('Failed to generate PDF');
+        alert('Failed to generate PDF');
+      }
+    } catch (error)
+    {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF');
+    }
+
+    setShowPdfMenu(null);
+  };
+
   // Render functions
   const renderOffers = () => (
     <div className="space-y-4">
@@ -230,6 +273,39 @@ const OfferAdminApp = () =>
             </div>
             <div className="flex space-x-2">
               <button
+                onClick={(e) =>
+                {
+                  e.stopPropagation();
+                  setShowPdfMenu(showPdfMenu === offer.id ? null : offer.id);
+                }}
+                className="p-2 text-green-600 hover:bg-green-50 rounded-lg relative"
+                title="Generate PDF"
+              >
+                <FileText size={16} />
+                {showPdfMenu === offer.id && (
+                  <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-48">
+                    <button
+                      onClick={() => generatePDF(offer.id, 'invoice')}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-t-lg"
+                    >
+                      Generate Invoice PDF
+                    </button>
+                    <button
+                      onClick={() => generatePDF(offer.id, 'report')}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                    >
+                      Generate Report PDF
+                    </button>
+                    <button
+                      onClick={() => generatePDF(offer.id, 'summary')}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-b-lg"
+                    >
+                      Generate Summary PDF
+                    </button>
+                  </div>
+                )}
+              </button>
+              <button
                 onClick={() => openEditModal(offer, 'offer')}
                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
               >
@@ -243,16 +319,22 @@ const OfferAdminApp = () =>
               </button>
             </div>
           </div>
+
           <div className="mt-4">
             <h4 className="font-medium text-gray-700 mb-2">Products:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <ul className="space-y-2">
               {offer.products.map((product, index) => (
-                <div key={index} className="bg-gray-50 p-3 rounded">
-                  <p className="font-medium">{product.description}</p>
-                  <p className="text-sm text-gray-600">${product.price} - {product.type}</p>
-                </div>
+                <li key={index} className="bg-gray-50 p-3 rounded flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{product.description}</p>
+                    <p className="text-sm text-gray-600">{product.type}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-green-600">${product.price}</p>
+                  </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </div>
       ))}
@@ -260,16 +342,21 @@ const OfferAdminApp = () =>
   );
 
   const renderProducts = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="space-y-4">
       {products.map(product => (
         <div key={product.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex justify-between items-start mb-4">
+          <div className="flex justify-between items-start">
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-800">{product.description}</h3>
               <p className="text-xl font-bold text-green-600">${product.price}</p>
               <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 {product.type}
               </span>
+              {product.picture && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">Image: {product.picture}</p>
+                </div>
+              )}
             </div>
             <div className="flex space-x-2">
               <button
@@ -286,11 +373,6 @@ const OfferAdminApp = () =>
               </button>
             </div>
           </div>
-          {product.picture && (
-            <div className="mt-4">
-              <p className="text-sm text-gray-600">Image: {product.picture}</p>
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -504,10 +586,10 @@ const OfferAdminApp = () =>
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100" onClick={() => setShowPdfMenu(null)}>
       {/* Sidebar */}
       <div className="w-64 bg-slate-50 border-r border-gray-200 flex flex-col">
-        <div className="p-6 border-b border-gray-200">
+        <div className="h-16 px-6 border-b border-gray-200 flex items-center">
           <div className="flex items-center space-x-3">
             <Star className="text-blue-600" size={32} />
             <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1>
@@ -548,9 +630,9 @@ const OfferAdminApp = () =>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-800 capitalize">
+        <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center">
+          <div className="flex justify-between items-center w-full">
+            <h2 className="text-xl font-bold text-gray-800 capitalize">
               {activeTab === 'settings' ? 'Settings' : activeTab}
             </h2>
             {activeTab !== 'settings' && (
